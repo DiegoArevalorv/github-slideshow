@@ -2,3 +2,6 @@ _site/
 .sass-cache/
 .jekyll-metadata
 .bundle
+
+# Variables de entorno — NUNCA subir a GitHub
+whatsapp-agent/.env
