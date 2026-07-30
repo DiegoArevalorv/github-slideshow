@@ -67,27 +67,56 @@ for _ in $(seq 1 40); do
 done
 
 PROFILE="$(mktemp -d)"
+
+# Chrome se cuelga indefinidamente en entornos de CI si intenta contactar el
+# keyring, dbus, la primera ejecución o los servicios de red en segundo plano.
+# Estos flags lo desactivan todo; el `timeout` es la red de seguridad final.
+CHROME_FLAGS="
+  --headless
+  --disable-gpu
+  --no-sandbox
+  --disable-dev-shm-usage
+  --no-first-run
+  --no-default-browser-check
+  --disable-extensions
+  --disable-sync
+  --disable-background-networking
+  --disable-component-update
+  --disable-crash-reporter
+  --disable-breakpad
+  --password-store=basic
+  --use-mock-keychain
+  --hide-scrollbars
+  --window-size=1280,1024
+  --virtual-time-budget=4000
+"
+
+SHOT_TIMEOUT="${SHOT_TIMEOUT:-45}"
+capturadas=0
 index=0
 while [ "$index" -lt "$SLIDES" ]; do
   file=$(printf "%s/slide-%02d.png" "$OUT" "$((index + 1))")
-  "$CHROME" \
-    --headless \
-    --disable-gpu \
-    --no-sandbox \
-    --hide-scrollbars \
-    --window-size=1280,1024 \
-    --virtual-time-budget=4000 \
-    --user-data-dir="$PROFILE" \
+  # shellcheck disable=SC2086
+  timeout "$SHOT_TIMEOUT" "$CHROME" $CHROME_FLAGS \
+    --user-data-dir="$PROFILE/$index" \
     --screenshot="$file" \
     "http://127.0.0.1:$PORT/#/$index" \
     >/dev/null 2>&1
+  estado=$?
   if [ -s "$file" ]; then
     echo "    $file"
+    capturadas=$((capturadas + 1))
+  elif [ "$estado" -eq 124 ]; then
+    echo "    AVISO: Chrome no respondió en ${SHOT_TIMEOUT}s para la diapositiva $((index + 1)); la salto." >&2
   else
-    echo "    AVISO: no se pudo capturar la diapositiva $((index + 1))" >&2
+    echo "    AVISO: no se pudo capturar la diapositiva $((index + 1)) (código $estado)." >&2
   fi
   index=$((index + 1))
 done
 rm -rf "$PROFILE"
 
-echo "==> Listo: $(find "$OUT" -name '*.png' | wc -l | tr -d ' ') imágenes en $OUT/"
+echo "==> Listo: $capturadas de $SLIDES imágenes en $OUT/"
+
+# No fallamos si alguna captura no salió: la vista previa es una ayuda, no una
+# comprobación de corrección. Quien valida el sitio es script/cibuild.
+exit 0

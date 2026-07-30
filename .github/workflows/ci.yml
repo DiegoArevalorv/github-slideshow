@@ -9,10 +9,17 @@ on:
 permissions:
   contents: read
 
+# Un push nuevo cancela el run anterior de la misma rama: evita que un run
+# atascado siga consumiendo minutos y que el PR muestre un estado obsoleto.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Compilar y validar
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
@@ -66,9 +73,11 @@ jobs:
           fi
           exit $fallo
 
-      # Informativo: si el runner no trae un Chromium usable, no bloquea el CI.
+      # Informativo: si el runner no trae un Chromium usable o se cuelga, no
+      # bloquea el CI. Quien valida el sitio es el paso de html-proofer.
       - name: Generar vista previa de las diapositivas
         continue-on-error: true
+        timeout-minutes: 5
         run: script/screenshots .preview
 
       - name: Publicar las imágenes como artefacto
