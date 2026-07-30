@@ -18,13 +18,20 @@ export BUNDLE_PATH="${BUNDLE_PATH:-vendor/bundle}"
 export LANG="${LANG:-C.UTF-8}"
 export LC_ALL="${LC_ALL:-C.UTF-8}"
 
-# Busca un Chromium utilizable.
+# Busca un Chromium utilizable. El orden importa: en los runners de Ubuntu,
+# `chromium` es un paquete snap cuyo lanzador se queda esperando a snapd
+# indefinidamente, así que descartamos cualquier ruta bajo /snap y preferimos
+# el Chrome instalado como paquete normal.
 CHROME=""
 for candidate in \
   /opt/pw-browsers/chromium \
+  "$(command -v google-chrome 2>/dev/null)" \
+  "$(command -v google-chrome-stable 2>/dev/null)" \
   "$(command -v chromium 2>/dev/null)" \
-  "$(command -v chromium-browser 2>/dev/null)" \
-  "$(command -v google-chrome 2>/dev/null)"; do
+  "$(command -v chromium-browser 2>/dev/null)"; do
+  case "$candidate" in
+    /snap/*) continue ;;
+  esac
   if [ -n "$candidate" ] && [ -x "$candidate" ]; then
     CHROME="$candidate"
     break
@@ -96,8 +103,10 @@ capturadas=0
 index=0
 while [ "$index" -lt "$SLIDES" ]; do
   file=$(printf "%s/slide-%02d.png" "$OUT" "$((index + 1))")
+  # -k: si Chrome ignora el SIGTERM, se le manda SIGKILL 10s después. Sin esto
+  # `timeout` se queda esperando al proceso que no muere y el CI se cuelga.
   # shellcheck disable=SC2086
-  timeout "$SHOT_TIMEOUT" "$CHROME" $CHROME_FLAGS \
+  timeout -k 10 "$SHOT_TIMEOUT" "$CHROME" $CHROME_FLAGS \
     --user-data-dir="$PROFILE/$index" \
     --screenshot="$file" \
     "http://127.0.0.1:$PORT/#/$index" \
