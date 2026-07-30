@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Genera una imagen PNG de cada diapositiva para revisarlas visualmente.
+#
+# Uso:  script/screenshots [directorio-de-salida]
+# Salida por defecto: .preview/  (ignorado por git)
+#
+# No instala nada: compila el sitio con Jekyll, lo sirve con el servidor HTTP
+# de Python y lo fotografía con el Chromium que ya está en el entorno.
+
+set -uo pipefail
+
+cd "$(dirname "$0")/.."
+
+OUT="${1:-.preview}"
+PORT="${PREVIEW_PORT:-4321}"
+
+export BUNDLE_PATH="${BUNDLE_PATH:-vendor/bundle}"
+export LANG="${LANG:-C.UTF-8}"
+export LC_ALL="${LC_ALL:-C.UTF-8}"
+
+# Busca un Chromium utilizable.
+CHROME=""
+for candidate in \
+  /opt/pw-browsers/chromium \
+  "$(command -v chromium 2>/dev/null)" \
+  "$(command -v chromium-browser 2>/dev/null)" \
+  "$(command -v google-chrome 2>/dev/null)"; do
+  if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+    CHROME="$candidate"
+    break
+  fi
+done
+
+if [ -z "$CHROME" ]; then
+  echo "ERROR: no encontré Chromium. No puedo generar las imágenes." >&2
+  exit 1
+fi
+
+echo "==> Compilando el sitio..."
+bundle exec jekyll build --quiet || {
+  echo "ERROR: el build de Jekyll falló. Arréglalo antes de pedir la vista previa." >&2
+  exit 1
+}
+
+SLIDES=$(grep -c '<section' _site/index.html || echo 0)
+if [ "$SLIDES" -lt 1 ]; then
+  echo "ERROR: el sitio no tiene diapositivas." >&2
+  exit 1
+fi
+echo "==> $SLIDES diapositivas detectadas."
+
+rm -rf "$OUT"
+mkdir -p "$OUT"
+
+echo "==> Sirviendo _site en el puerto $PORT..."
+python3 -m http.server "$PORT" --directory _site --bind 127.0.0.1 >/dev/null 2>&1 &
+SERVER_PID=$!
+cleanup() { kill "$SERVER_PID" 2>/dev/null; }
+trap cleanup EXIT
+
+# Espera a que el servidor responda.
+for _ in $(seq 1 40); do
+  if curl -sSf -o /dev/null "http://127.0.0.1:$PORT/" 2>/dev/null; then
+    break
+  fi
+  sleep 0.25
+done
+
+PROFILE="$(mktemp -d)"
+index=0
+while [ "$index" -lt "$SLIDES" ]; do
+  file=$(printf "%s/slide-%02d.png" "$OUT" "$((index + 1))")
+  "$CHROME" \
+    --headless \
+    --disable-gpu \
+    --no-sandbox \
+    --hide-scrollbars \
+    --window-size=1280,1024 \
+    --virtual-time-budget=4000 \
+    --user-data-dir="$PROFILE" \
+    --screenshot="$file" \
+    "http://127.0.0.1:$PORT/#/$index" \
+    >/dev/null 2>&1
+  if [ -s "$file" ]; then
+    echo "    $file"
+  else
+    echo "    AVISO: no se pudo capturar la diapositiva $((index + 1))" >&2
+  fi
+  index=$((index + 1))
+done
+rm -rf "$PROFILE"
+
+echo "==> Listo: $(find "$OUT" -name '*.png' | wc -l | tr -d ' ') imágenes en $OUT/"
