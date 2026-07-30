@@ -42,6 +42,7 @@ if [ -z "$CHROME" ]; then
   echo "ERROR: no encontré Chromium. No puedo generar las imágenes." >&2
   exit 1
 fi
+echo "==> Navegador: $CHROME"
 
 echo "==> Compilando el sitio..."
 bundle exec jekyll build --quiet || {

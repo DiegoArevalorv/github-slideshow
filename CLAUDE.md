@@ -126,8 +126,17 @@ Las gemas se instalan en `vendor/bundle` (ignorado por git).
   duplicada) y front matter. Si algo está mal, te lo devuelve para corregirlo en
   el momento.
 - **GitHub Actions** (`.github/workflows/ci.yml`): compila, valida enlaces,
-  comprueba que todas las diapositivas se publiquen, revisa las fechas y sube
-  las imágenes de las diapositivas como artefacto del run.
+  comprueba que todas las diapositivas se publiquen y revisa las fechas.
+
+### La vista previa visual solo funciona en local
+
+`script/screenshots` funciona en local y dentro de las sesiones de Claude Code
+(usa el Chromium de `/opt/pw-browsers/`), pero **no en los runners de GitHub**:
+allí el Chrome disponible no responde a `--screenshot` en headless y acaba en
+timeout sin producir nada. Se probó con y sin los flags que desactivan
+keyring, dbus y los servicios de red, y descartando los lanzadores snap. Por
+eso el paso se retiró del CI. No lo vuelvas a añadir sin comprobar antes que
+produce imágenes de verdad en un runner.
 
 ## Convenciones de trabajo
 

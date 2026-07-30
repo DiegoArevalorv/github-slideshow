@@ -73,17 +73,10 @@ jobs:
           fi
           exit $fallo
 
-      # Informativo: si el runner no trae un Chromium usable o se cuelga, no
-      # bloquea el CI. Quien valida el sitio es el paso de html-proofer.
-      - name: Generar vista previa de las diapositivas
-        continue-on-error: true
-        timeout-minutes: 5
-        run: script/screenshots .preview
-
-      - name: Publicar las imágenes como artefacto
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: vista-previa-diapositivas
-          path: .preview/
-          if-no-files-found: warn
+      # La vista previa visual (script/screenshots) NO se genera aquí a
+      # propósito. En los runners de GitHub el Chrome disponible no responde a
+      # `--screenshot` en modo headless: probado con y sin los flags que evitan
+      # keyring/dbus/snap, y siempre acaba en timeout sin producir imágenes.
+      # El script funciona bien en local y en las sesiones de Claude Code, que
+      # es donde se usa (`/vista-previa`). Mantener el paso aquí solo añadía un
+      # aviso permanente y un artefacto vacío.
