@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "BUNDLE_PATH": "vendor/bundle",
+    "BUNDLER_VERSION": "2.5.22",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "JEKYLL_ENV": "development",
+    "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bundle install:*)",
+      "Bash(bundle exec jekyll build:*)",
+      "Bash(bundle exec jekyll serve:*)",
+      "Bash(bundle exec jekyll -v)",
+      "Bash(bundle exec htmlproofer:*)",
+      "Bash(bundle list:*)",
+      "Bash(bundle -v)",
+      "Bash(script/cibuild)",
+      "Bash(npm ci:*)",
+      "Bash(npm install:*)",
+      "Bash(ruby -v)",
+      "Bash(gem list:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git ls-files:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(curl -sS http://localhost:4000/*)",
+      "Bash(.claude/hooks/session-start.sh)",
+      "Read(//home/user/github-slideshow/**)",
+      "Edit(//home/user/github-slideshow/_posts/**)",
+      "Edit(//home/user/github-slideshow/_layouts/**)",
+      "Edit(//home/user/github-slideshow/_includes/**)",
+      "Edit(//home/user/github-slideshow/_config.yml)",
+      "Write(//home/user/github-slideshow/_posts/**)"
+    ],
+    "ask": [
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Read(//home/user/github-slideshow/.env)",
+      "Read(//home/user/github-slideshow/.env.*)",
+      "Edit(//home/user/github-slideshow/Gemfile.lock)",
+      "Edit(//home/user/github-slideshow/node_modules/**)",
+      "Edit(//home/user/github-slideshow/_site/**)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(rm -rf /*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-slide.py",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

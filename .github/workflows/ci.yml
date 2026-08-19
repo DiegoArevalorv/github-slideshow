@@ -1,0 +1,82 @@
+name: Verificar presentación
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Un push nuevo cancela el run anterior de la misma rama: evita que un run
+# atascado siga consumiendo minutos y que el PR muestre un estado obsoleto.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilar y validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Ruby y gemas
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Compilar el sitio y validar enlaces
+        run: script/cibuild
+
+      - name: Comprobar que todas las diapositivas se publicaron
+        run: |
+          archivos=$(find _posts -type f \( -name '*.md' -o -name '*.markdown' -o -name '*.html' \) | wc -l)
+          publicadas=$(grep -o '<section' _site/index.html | wc -l)
+          echo "Diapositivas en _posts/: $archivos"
+          echo "Diapositivas publicadas: $publicadas"
+          if [ "$archivos" -ne "$publicadas" ]; then
+            echo "::error::Faltan diapositivas en el sitio generado ($publicadas de $archivos)."
+            echo "Causa habitual: una fecha futura en el nombre del archivo (_config.yml usa future: false),"
+            echo "o falta 'layout: slide' en el front matter."
+            exit 1
+          fi
+
+      - name: Comprobar fechas de las diapositivas
+        run: |
+          hoy=$(date -u +%Y-%m-%d)
+          fallo=0
+          for archivo in _posts/*; do
+            nombre=$(basename "$archivo")
+            if ! echo "$nombre" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}-'; then
+              echo "::error file=$archivo::Nombre inválido: se espera AAAA-MM-DD-slug.md"
+              fallo=1
+              continue
+            fi
+            fecha=${nombre:0:10}
+            if [ "$fecha" \> "$hoy" ]; then
+              echo "::error file=$archivo::Fecha futura ($fecha); la diapositiva no se publicaría."
+              fallo=1
+            fi
+          done
+          duplicadas=$(ls _posts | cut -c1-10 | sort | uniq -d)
+          if [ -n "$duplicadas" ]; then
+            echo "::error::Fechas duplicadas, el orden de las diapositivas es impredecible: $duplicadas"
+            fallo=1
+          fi
+          exit $fallo
+
+      # La vista previa visual (script/screenshots) NO se genera aquí a
+      # propósito. En los runners de GitHub el Chrome disponible no responde a
+      # `--screenshot` en modo headless: probado con y sin los flags que evitan
+      # keyring/dbus/snap, y siempre acaba en timeout sin producir imágenes.
+      # El script funciona bien en local y en las sesiones de Claude Code, que
+      # es donde se usa (`/vista-previa`). Mantener el paso aquí solo añadía un
+      # aviso permanente y un artefacto vacío.
